@@ -7,3 +7,4 @@ app.list format config
 
 mkdir ~/.config/hyprpanel and copy or create both app.list and style.css
 
+![screenshot](https://github.com/killown/hyprpanel/assets/24453/943d920f-ef25-4a2f-bc5c-519bb5dac5fe)

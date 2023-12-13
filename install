@@ -1,0 +1,3 @@
+sudo meson setup  build -Dvapi=true -Dintrospection=true --wipe
+sudo ninja -C build install
+sudo cp build/src/libgtk4-layer-shell* /usr/lib

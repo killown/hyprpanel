@@ -1,0 +1,12 @@
+.launcher {
+    -gtk-icon-size: 42px;
+    background: rgba(0, 0, 0, 0);
+}
+
+.launcher:hover {
+    color:yellow;
+}
+
+.panel{
+    background: rgba(0, 0, 0, 0);
+}

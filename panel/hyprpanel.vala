@@ -1,16 +1,22 @@
 using Gtk;
 using GtkLayerShell;
 
+
 bool menu_running = false;
 
 int RunAPP(string app) {
     MainLoop loop = new MainLoop();
+    
     try {
-        string[] spawn_args = { app };
+        string[] spawn_args = {  };
+
+        foreach (string a in app.split(" ")) {
+           spawn_args += a ;
+        }         
         string[] spawn_env = Environ.get();
         Pid child_pid;
 
-        Process.spawn_async("/",
+        Process.spawn_async(GLib.Environment.get_home_dir(),
                             spawn_args,
                             spawn_env,
                             SpawnFlags.SEARCH_PATH | SpawnFlags.DO_NOT_REAP_CHILD,
@@ -35,7 +41,6 @@ Gtk.Widget CreateMenu(string menu) {
     Menu.get_style_context().add_class("launcher");
     Menu.halign = Gtk.Align.FILL;
     Menu.valign = Gtk.Align.FILL;
-
     Menu.clicked.connect(() => {
     GLib.Process.spawn_command_line_sync(menu);
     });
@@ -43,13 +48,18 @@ Gtk.Widget CreateMenu(string menu) {
 }
 
 Gtk.Widget CreateNewLauncher(string app, string icon) {
+    string movewindowscript_path = Path.build_filename(GLib.Environment.get_home_dir(), ".config/hypr/scripts/mvallwinfromsameapp.py ");
+    string movewindowscript =  movewindowscript_path + " " + icon;
     var btn = new Button.from_icon_name(icon);
     btn.get_style_context().add_class("launcher");
     btn.halign = Gtk.Align.FILL;
     btn.valign = Gtk.Align.FILL;
     btn.clicked.connect(() => {
+        GLib.Process.spawn_command_line_sync(movewindowscript);
         RunAPP(app);
+        GLib.Process.spawn_command_line_sync(movewindowscript);
     });
+
     return btn;
 }
 
@@ -63,7 +73,7 @@ int main(string[] argv) {
         var window = new Gtk.ApplicationWindow(app);
         window.set_resizable(true);
         window.get_style_context().add_class("panel");
-
+        
         // config files
         string app_list = Path.build_filename(GLib.Environment.get_home_dir(), ".config/hyprpanel/app.list");
         string style_css = Path.build_filename(GLib.Environment.get_home_dir(), ".config/hyprpanel/style.css");
@@ -72,11 +82,12 @@ int main(string[] argv) {
 
         // setup panel position
         GtkLayerShell.init_for_window(window);
-        //GtkLayerShell.auto_exclusive_zone_enable(window);
-        GtkLayerShell.set_margin(window, GtkLayerShell.Edge.TOP, 0);
-        GtkLayerShell.set_margin(window, GtkLayerShell.Edge.BOTTOM, 0);
-        GtkLayerShell.set_anchor(window, GtkLayerShell.Edge.BOTTOM, true);
-        GtkLayerShell.set_layer (window, GtkLayerShell.Layer.BACKGROUND);
+        GtkLayerShell.auto_exclusive_zone_enable(window);
+        GtkLayerShell.set_margin(window, GtkLayerShell.Edge.TOP, 10);
+        GtkLayerShell.set_margin(window, GtkLayerShell.Edge.BOTTOM, 10);
+        GtkLayerShell.set_anchor(window, GtkLayerShell.Edge.LEFT, true);
+        //GtkLayerShell.set_layer (window, GtkLayerShell.Layer.BACKGROUND);
+
 
         // load style.css
         var provider = new Gtk.CssProvider ();
@@ -94,8 +105,9 @@ int main(string[] argv) {
 
 
         // box containing all button icons
-        Gtk.Box box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 5);
-
+        Gtk.Box box = new Gtk.Box(Gtk.Orientation.VERTICAL, 5);
+        box.get_style_context().add_class("box");
+        
         File file = File.new_for_path(app_list);
         try {
             FileInputStream @is = file.read();

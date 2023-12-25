@@ -1,4 +1,6 @@
 # Install
+- git clone https://github.com/killown/hyprpanel
+- cd hyprpanel
 - sh install
 - mkdir ~/.config/hyprpanel; cp *.toml ~/.config/hyprpanel
 

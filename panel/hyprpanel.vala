@@ -1,5 +1,7 @@
 using Gtk;
 using GtkLayerShell;
+using GLib;
+using Gdk;
 
 
 bool menu_running = false;
@@ -49,7 +51,7 @@ Gtk.Widget CreateMenu(string menu) {
     return Menu;
 }
 
-Gtk.Widget CreateNewLauncher(string app, string icon, string css_class, bool change_icon_on_click) {
+Gtk.Widget CreateNewLauncher(string app, string icon, string css_class, bool change_icon_on_click, string icon_change_name) {
     string movewindowscript_path = Path.build_filename(GLib.Environment.get_home_dir(), ".config/hypr/scripts/mvallwinfromsameapp.py ");
     string movewindowscript =  movewindowscript_path + " " + icon;
     var btn = new Button.from_icon_name(icon);
@@ -57,6 +59,7 @@ Gtk.Widget CreateNewLauncher(string app, string icon, string css_class, bool cha
     btn.halign = Gtk.Align.FILL;
     btn.valign = Gtk.Align.FILL;
 
+    //this will change the icon on click and retore last changed icon
     if(change_icon_on_click == true){
         btn.clicked.connect(() => {
         if(last_icon != ""){
@@ -64,7 +67,7 @@ Gtk.Widget CreateNewLauncher(string app, string icon, string css_class, bool cha
         }
         last_icon = icon;
         last_button = btn;
-        btn.set_icon_name("carousel-arrow-back-symbolic");
+        btn.set_icon_name(icon_change_name);
         GLib.Process.spawn_command_line_sync(movewindowscript);
         RunAPP(app);
         GLib.Process.spawn_command_line_sync(movewindowscript);
@@ -97,7 +100,7 @@ string LoadStyle(string style_css){
 }
 
 
-string LoadIcons(string app_list, string css_class, bool change_icon_on_click, Gtk.Box box){
+string LoadIcons(string app_list, string css_class, bool change_icon_on_click, string icon_change_name, Gtk.Box box){
         File file = File.new_for_path(app_list);
         try {
             FileInputStream @is = file.read();
@@ -109,7 +112,7 @@ string LoadIcons(string app_list, string css_class, bool change_icon_on_click, G
             if(line != ""){
                 string icon = line.split(":")[0];
                 string app_name = line.split(":")[1];
-                box.prepend(CreateNewLauncher(icon, app_name, css_class, change_icon_on_click));
+                box.prepend(CreateNewLauncher(icon, app_name, css_class, change_icon_on_click, icon_change_name));
             }
                 
             }
@@ -120,27 +123,45 @@ string LoadIcons(string app_list, string css_class, bool change_icon_on_click, G
 }
 
 
-int main(string[] argv) {
-    var app = new Gtk.Application(
-                                  "com.github.wmww.gtk4-layer-shell",
-                                  GLib.ApplicationFlags.FLAGS_NONE);
-    app.activate.connect(() => {
+
+public class RefreshLabel : Gtk.Application {
+        
+    private uint[] timeout_id;
+    
+    private Gtk.Button clock;
+
+    
+    public RefreshLabel () {
+        Object (
+            application_id: "com.github.wmww.gtk4-layer-shell",
+            flags: GLib.ApplicationFlags.FLAGS_NONE
+        );
+    }
+
+    protected override void activate () {
+
 
         // left bar setup
-        var left_bar = new Gtk.ApplicationWindow(app);
+        var left_bar = new Gtk.ApplicationWindow(this);
         left_bar.set_resizable(true);
         left_bar.get_style_context().add_class("panel");
 
 
         // bottom bar setup
-        var bottom_bar = new Gtk.ApplicationWindow(app);
+        var bottom_bar = new Gtk.ApplicationWindow(this);
         bottom_bar.set_resizable(true);
         bottom_bar.get_style_context().add_class("bottombar");
-        
-        
+
+
+        // top bar setup
+        var top_bar = new Gtk.ApplicationWindow(this);
+        top_bar.set_resizable(true);
+        top_bar.get_style_context().add_class("topbar");
+
         // config files
         string app_list = Path.build_filename(GLib.Environment.get_home_dir(), ".config/hyprpanel/app.list");
         string workspace_list = Path.build_filename(GLib.Environment.get_home_dir(), ".config/hyprpanel/workspace.list");
+        string topbar_conf = Path.build_filename(GLib.Environment.get_home_dir(), ".config/hyprpanel/topbbar.conf");
         string style_css = Path.build_filename(GLib.Environment.get_home_dir(), ".config/hyprpanel/style.css");
         string menu_config = Path.build_filename(GLib.Environment.get_home_dir(), ".config/hyprpanel/menu.cfg");
 
@@ -156,11 +177,20 @@ int main(string[] argv) {
 
         // setup bottom bar position
         GtkLayerShell.init_for_window(bottom_bar);
-        GtkLayerShell.auto_exclusive_zone_enable(bottom_bar);
+        //GtkLayerShell.auto_exclusive_zone_enable(bottom_bar);
         GtkLayerShell.set_margin(bottom_bar, GtkLayerShell.Edge.TOP, 0);
-        GtkLayerShell.set_margin(bottom_bar, GtkLayerShell.Edge.LEFT, 0);
-        GtkLayerShell.set_anchor(bottom_bar, GtkLayerShell.Edge.RIGHT, true);
-        //GtkLayerShell.set_layer (bottom_bar, GtkLayerShell.Layer.BACKGROUND);
+        GtkLayerShell.set_margin(bottom_bar, GtkLayerShell.Edge.BOTTOM, 0);
+        GtkLayerShell.set_anchor(bottom_bar, GtkLayerShell.Edge.BOTTOM, true);
+        GtkLayerShell.set_layer (bottom_bar, GtkLayerShell.Layer.BOTTOM);
+
+
+        // setup top bar position
+        GtkLayerShell.init_for_window(top_bar);
+        GtkLayerShell.auto_exclusive_zone_enable(top_bar);
+        GtkLayerShell.set_margin(top_bar, GtkLayerShell.Edge.TOP, 0);
+        GtkLayerShell.set_margin(top_bar, GtkLayerShell.Edge.LEFT, 0);
+        GtkLayerShell.set_anchor(top_bar, GtkLayerShell.Edge.TOP, true);
+        //GtkLayerShell.set_layer (top_bar, GtkLayerShell.Layer.BACKGROUND);
 
 
 
@@ -173,12 +203,58 @@ int main(string[] argv) {
         box.get_style_context().add_class("box");
 
         //box for bottom bar
-        Gtk.Box box_bottom_bar = new Gtk.Box(Gtk.Orientation.VERTICAL, 5);
+        Gtk.Box box_bottom_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 5);
         box_bottom_bar.get_style_context().add_class("BoxBottomBar");
 
-        LoadIcons(app_list, "LeftBar", false, box);
-        LoadIcons(workspace_list, "BottomBar", true, box_bottom_bar);
+        //box for top bar
+        Gtk.Box box_top_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 5);
+        box_top_bar.get_style_context().add_class("BoxTopBar");
 
+
+
+        LoadIcons(app_list, "LeftBar", false, "", box);
+        LoadIcons(workspace_list, "BottomBar", true, "carousel-arrow-back-symbolic", box_bottom_bar);
+
+        // set up clock
+        var now = new DateTime.now_local ();
+        string datenow = now.format ("%d %A %R");
+        clock = new Button();
+        clock.set_label(datenow);
+        clock.get_style_context().add_class("Clock");
+        box_top_bar.prepend(clock);
+        timeout_id += Timeout.add_seconds_full (GLib.Priority.DEFAULT, 1, update_time);
+
+ 
+        var window = new Gtk.ApplicationWindow (this);
+        var calendar = new Calendar();
+        var noww = new DateTime.now_local();
+        calendar.mark_day(noww.get_day_of_month());
+        window.set_child(calendar);
+
+        
+
+    var quit_action = new GLib.SimpleAction ("app.quit", null);
+    quit_action.activate.connect (this.quit);
+    this.add_action (quit_action);
+
+
+    GLib.Menu popupmenu = new GLib.Menu();
+    popupmenu.append ("Quit", "app.quit");
+    GLib.Menu submenu = new GLib.Menu();
+    GLib.MenuItem item1 = new GLib.MenuItem("Quit", "app.quit");
+    popupmenu.append_item(item1);
+    GLib.MenuItem item2 = new GLib.MenuItem("Sub Menu Action 2", "app.actionb");
+    submenu.append_item(item2);
+    popupmenu.append_submenu("submenu", submenu);
+
+    Gtk.PopoverMenu popup = new Gtk.PopoverMenu.from_model(popupmenu);
+    popup.set_parent(clock);
+    clock.clicked.connect(() => {
+        popup.popup();
+        //RunAPP("swaync-client -t");
+        //app.run ();
+
+    });
 
 
 
@@ -203,7 +279,40 @@ int main(string[] argv) {
         // show bottom bar
         bottom_bar.set_child(box_bottom_bar);
         bottom_bar.present();
-    });
+        // show top bar
+        top_bar.set_child(box_top_bar);
+        top_bar.present();
 
-    return app.run(argv);
+    
+    }
+       
+
+        public bool button_pressed(Gdk.ButtonEvent e) {
+       
+                        print("Ola");
+              
+                return true;
+        }
+
+
+    protected override void shutdown () {
+        // On close all instance of the timeout must be closed
+        foreach (var id in timeout_id)
+            GLib.Source.remove (id);
+        base.shutdown ();
+    }
+    
+    public bool update_time () {
+        var now = new GLib.DateTime.now_local ();
+        clock.set_label (now.format ("%d %A %R"));
+        return true;
+    }
+
+    public static int main (string[] args) {
+        RefreshLabel app = new RefreshLabel ();
+        return app.run (args);
+    }
 }
+
+
+
